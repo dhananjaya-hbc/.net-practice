@@ -1,62 +1,56 @@
+using GameStore.Api.Data;
 using GameStore.Api.Dtos;
+using GameStore.Api.Mapping;
+
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddSqlite<GameStoreContext>(
+    builder.Configuration.GetConnectionString("GameStoreConnection"));
+
 var app = builder.Build();
 
-List<GameDto> games = [
-    new(1, "The Legend of Zelda: Breath of the Wild", "Action-adventure", 59.99m, "Nintendo", "Nintendo", new DateTime(2017, 3, 3)),
-    new(2, "Super Mario Odyssey", "Platform", 59.99m, "Nintendo", "Nintendo", new DateTime(2017, 10, 27)),
-    new(3, "Red Dead Redemption 2", "Action-adventure", 59.99m, "Rockstar Games", "Rockstar Games", new DateTime(2018, 10, 26))
-];
-
 //Get all games
-app.MapGet("/games", () => games);
+app.MapGet("/games", (GameStoreContext dbContext) =>
+    dbContext.Games.Select(game => game.ToDto()).ToList());
 
 //Get a game by id
-app.MapGet("/games/{id}", (int id) =>
+app.MapGet("/games/{id}", (int id, GameStoreContext dbContext) =>
 {
-    var game = games.FirstOrDefault(g => g.Id == id);
-    return game is not null ? Results.Ok(game) : Results.NotFound();
+    var game = dbContext.Games.Find(id);
+    return game is not null ? Results.Ok(game.ToDto()) : Results.NotFound();
 });
 
 //Create a new game
-app.MapPost("/games", (CreateGameDto newGame) =>
+app.MapPost("/games", (CreateGameDto newGame, GameStoreContext dbContext) =>
 {
-    var game = new GameDto(
-        Id: games.Max(g => g.Id) + 1,
-        Title: newGame.Title,
-        Genre: newGame.Genre,
-        Price: newGame.Price,
-        Developer: newGame.Developer,
-        Publisher: newGame.Publisher,
-        ReleaseDate: newGame.ReleaseDate
-    );
+    var game = newGame.ToEntity();
 
-    games.Add(game);
-    return Results.Created($"/games/{game.Id}", game);
+    dbContext.Games.Add(game);
+    dbContext.SaveChanges();
+
+    return Results.Created($"/games/{game.Id}", game.ToDto());
 });
 
 //Update a game
-app.MapPut("/games/{id}", (int id, CreateGameDto updatedGame) =>
+app.MapPut("/games/{id}", (int id, CreateGameDto updatedGame, GameStoreContext dbContext) =>
 {
-    var game = games.FirstOrDefault(g => g.Id == id);
+    var game = dbContext.Games.Find(id);
     if (game is null)
     {
         return Results.NotFound();
     }
 
-    var updatedGameDto = new GameDto(
-        Id: game.Id,
-        Title: updatedGame.Title,
-        Genre: updatedGame.Genre,
-        Price: updatedGame.Price,
-        Developer: updatedGame.Developer,
-        Publisher: updatedGame.Publisher,
-        ReleaseDate: updatedGame.ReleaseDate
-    );
+    game.Title = updatedGame.Title;
+    game.Genre = updatedGame.Genre;
+    game.Price = updatedGame.Price;
+    game.Developer = updatedGame.Developer;
+    game.Publisher = updatedGame.Publisher;
+    game.ReleaseDate = updatedGame.ReleaseDate;
 
-    games[games.IndexOf(game)] = updatedGameDto;
-    return Results.Ok(updatedGameDto);
+    dbContext.SaveChanges();
+
+    return Results.Ok(game.ToDto());
 });
 
 app.Run();
