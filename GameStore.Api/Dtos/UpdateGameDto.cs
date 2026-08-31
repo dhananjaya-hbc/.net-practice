@@ -1,6 +1,5 @@
 namespace GameStore.Api.Dtos;
-
-public record GameDto
+public record UpdateGameDto
 (
     int Id,
     string Title,
@@ -10,5 +9,3 @@ public record GameDto
     string Publisher,
     DateTime ReleaseDate
 );
-
-
